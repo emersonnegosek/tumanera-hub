@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/*
+ * Design system TuManera — estilo Apple:
+ * tipografia do sistema, muito respiro, preto/branco + um acento, animação com propósito.
+ */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f5f5f7;
+  --fg: #1d1d1f;
+  --fg-soft: #6e6e73;
+  --line: #d2d2d7;
+  --accent: #0071e3;
+  --accent-fg: #ffffff;
+  --card: #ffffff;
+  --nav: rgba(255, 255, 255, 0.72);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --bg-soft: #161617;
+    --fg: #f5f5f7;
+    --fg-soft: #a1a1a6;
+    --line: #424245;
+    --accent: #2997ff;
+    --card: #1d1d1f;
+    --nav: rgba(22, 22, 23, 0.72);
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-fg: var(--fg);
+  --color-fg-soft: var(--fg-soft);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-card: var(--card);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+.headline {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+/* Revelar ao rolar */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@layer components {
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 980px;
+  padding: 0.7rem 1.4rem;
+  font-size: 1rem;
+  font-weight: 500;
+  transition:
+    transform 200ms ease,
+    background-color 200ms ease,
+    opacity 200ms ease;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.btn-primary:hover {
+  opacity: 0.9;
+}
+.btn-ghost {
+  color: var(--accent);
+}
+.btn-ghost:hover {
+  text-decoration: underline;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 1.5rem;
+}
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .btn {
+    transition: none;
+  }
+}
