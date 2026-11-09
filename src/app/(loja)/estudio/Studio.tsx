@@ -3,19 +3,17 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Mockup } from "@/components/Mockup";
 import {
-  PRINT_PRICE_CENTS,
-  PRINT_SIZE_LABEL,
-  PRODUCTS,
-  type PrintSize,
-  type Product,
+  ART_SIZE_INFO,
+  CATEGORIES,
+  MOCKUP_PCT_PER_CM,
+  findModel,
+  fromPriceCents,
+  type ArtSize,
+  type Category,
+  type Model,
 } from "@/lib/catalog";
-import { formatBRL, quotePiece } from "@/lib/pricing";
+import { QuoteError, formatBRL, minQuantity, quotePiece, tierIndexFor, type Quote } from "@/lib/pricing";
 import { whatsappLink } from "@/lib/site";
-
-/** Largura máxima de cada tamanho de estampa, em cm. */
-const PRINT_WIDTH_CM: Record<PrintSize, number> = { escudo: 10, a4: 21, a3: 30 };
-/** Largura da estampa no mockup, em % da largura da peça. */
-const PRINT_WIDTH_PCT: Record<PrintSize, number> = { escudo: 13, a4: 32, a3: 42 };
 
 interface ArtInfo {
   url: string;
@@ -25,30 +23,43 @@ interface ArtInfo {
   hasTransparency: boolean | null;
 }
 
-type Placement = { size: PrintSize; dx: number; dy: number };
+type Placement = { size: ArtSize; dx: number; dy: number };
 
-export function Studio({ initialSlug }: { initialSlug?: string }) {
-  const [product, setProduct] = useState<Product>(
-    PRODUCTS.find((p) => p.slug === initialSlug) ?? PRODUCTS[0],
-  );
-  const [colorId, setColorId] = useState(product.colors[0].id);
+export function Studio({ initialModel, initialCategory }: { initialModel?: string; initialCategory?: string }) {
+  const initial =
+    (initialModel && findModel(initialModel)) ||
+    (() => {
+      const c = CATEGORIES.find((x) => x.slug === initialCategory) ?? CATEGORIES[0];
+      return { category: c, model: c.models[0] };
+    })();
+
+  const [category, setCategory] = useState<Category>(initial.category);
+  const [model, setModel] = useState<Model>(initial.model);
+  const [colorId, setColorId] = useState(initial.category.colors[0].id);
   const [side, setSide] = useState<"frente" | "costas">("frente");
-  const [placements, setPlacements] = useState<Record<string, Placement>>(() => defaultPlacement(product));
+  const [placements, setPlacements] = useState<Record<string, Placement>>(() => defaultPlacement(initial.category));
   const [art, setArt] = useState<ArtInfo | null>(null);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(minQuantity(initial.model));
   const [customerSupplied, setCustomerSupplied] = useState(false);
 
-  const color = product.colors.find((c) => c.id === colorId) ?? product.colors[0];
+  const color = category.colors.find((c) => c.id === colorId) ?? category.colors[0];
+  const minQty = minQuantity(model);
 
-  function selectProduct(p: Product) {
-    setProduct(p);
-    setColorId(p.colors[0].id);
+  function selectCategory(c: Category) {
+    setCategory(c);
+    setColorId(c.colors[0].id);
     setSide("frente");
-    setPlacements(defaultPlacement(p));
+    setPlacements(defaultPlacement(c));
+    selectModel(c.models[0]);
+  }
+
+  function selectModel(m: Model) {
+    setModel(m);
+    setQuantity((q) => Math.max(q, minQuantity(m)));
   }
 
   function toggleArea(areaId: string) {
-    const area = product.printAreas.find((a) => a.id === areaId)!;
+    const area = category.printAreas.find((a) => a.id === areaId)!;
     setPlacements((prev) => {
       const next = { ...prev };
       if (next[areaId]) delete next[areaId];
@@ -75,29 +86,41 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
   }
 
   const prints = Object.entries(placements).map(([areaId, p]) => ({ areaId, size: p.size }));
-  const quote = quotePiece(product, prints, Math.max(1, quantity || 1), customerSupplied);
+  let quote: Quote | null = null;
+  let quoteError: string | null = null;
+  try {
+    quote = quotePiece(category, model, prints, Math.max(1, quantity || 1), customerSupplied);
+  } catch (e) {
+    if (!(e instanceof QuoteError)) throw e;
+    quoteError = e.message;
+  }
+  const tier = Math.max(0, tierIndexFor(model, quantity));
+  const sizeExtra = (s: ArtSize) => model.prices[s][tier] - model.prices.sem[tier];
 
   const warnings = art ? artWarnings(art, prints.map((p) => p.size)) : [];
 
   const summary = [
     `Olá! Montei uma peça no estúdio da TuManera:`,
-    `• ${customerSupplied ? "Personalização de peça minha" : product.name} — ${color.label}`,
+    `• ${customerSupplied ? `Personalização de peça minha (${category.name})` : model.name} — ${color.label}`,
     ...Object.entries(placements).map(([areaId, p]) => {
-      const a = product.printAreas.find((x) => x.id === areaId)!;
-      return `• ${a.label}: ${PRINT_SIZE_LABEL[p.size]}`;
+      const a = category.printAreas.find((x) => x.id === areaId)!;
+      return `• ${a.label}: ${ART_SIZE_INFO[p.size].label}`;
     }),
-    `• Quantidade: ${quantity}`,
-    `• Estimativa: ${formatBRL(quote.totalCents)}`,
+    `• Quantidade: ${quantity} (faixa ${quote?.tierLabel ?? "-"})`,
+    quote ? `• Estimativa: ${formatBRL(quote.totalCents)}` : "",
+    `Tamanhos (grade PP a G3): vou informar aqui.`,
     art ? `Vou enviar a arte "${art.name}" aqui no chat.` : `Ainda preciso de ajuda com a arte.`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
     <div className="grid gap-10 lg:grid-cols-[1.2fr_1fr]">
       {/* Visualização */}
       <div className="lg:sticky lg:top-20 lg:self-start">
         <div className="rounded-3xl bg-bg-soft p-6 sm:p-10">
-          <Mockup kind={product.kind} color={color.hex} side={side} className="mx-auto max-w-md">
-            {product.printAreas
+          <Mockup kind={category.kind} color={color.hex} side={side} className="mx-auto max-w-md">
+            {category.printAreas
               .filter((a) => a.side === side && placements[a.id])
               .map((a) => (
                 <ArtOnPiece
@@ -105,7 +128,7 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
                   x={a.x}
                   y={a.y}
                   placement={placements[a.id]}
-                  widthPct={PRINT_WIDTH_PCT[placements[a.id].size] * (product.kind === "bone" ? 1.6 : 1)}
+                  widthPct={ART_SIZE_INFO[placements[a.id].size].widthCm * MOCKUP_PCT_PER_CM[category.kind]}
                   art={art}
                   label={a.label}
                   onMove={(dx, dy) =>
@@ -129,22 +152,49 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
       </div>
 
       {/* Configuração */}
-      <div className="space-y-8">
+      <div className="min-w-0 space-y-8">
         <Step n={1} title="Peça">
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {PRODUCTS.map((p) => (
+          <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2">
+            {CATEGORIES.map((c) => (
               <button
-                key={p.slug}
-                onClick={() => selectProduct(p)}
-                className={`rounded-2xl border p-2 text-xs transition-colors ${
-                  p.slug === product.slug ? "border-accent ring-1 ring-accent" : "border-line hover:border-fg-soft"
+                key={c.slug}
+                onClick={() => selectCategory(c)}
+                className={`w-24 shrink-0 snap-start rounded-2xl border p-2 text-xs transition-colors ${
+                  c.slug === category.slug ? "border-accent ring-1 ring-accent" : "border-line hover:border-fg-soft"
                 }`}
               >
-                <Mockup kind={p.kind} color={p.colors[0].hex} />
-                <span className="mt-1 block">{p.name}</span>
+                <Mockup kind={c.kind} color={c.colors[0].hex} />
+                <span className="mt-1 block leading-tight">{c.name}</span>
               </button>
             ))}
           </div>
+          <ul className="mt-4 space-y-2">
+            {category.models.map((m) => (
+              <li key={m.slug}>
+                <label
+                  className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition-colors ${
+                    m.slug === model.slug ? "border-accent ring-1 ring-accent" : "border-line hover:border-fg-soft"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modelo"
+                    checked={m.slug === model.slug}
+                    onChange={() => selectModel(m)}
+                    className="mt-1 h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="flex-1">
+                    <span className="block font-medium">{m.name}</span>
+                    <span className="block text-xs text-fg-soft">{m.composition}</span>
+                  </span>
+                  <span className="text-right text-xs text-fg-soft">
+                    a partir de
+                    <span className="block text-sm text-fg">{formatBRL(fromPriceCents(m))}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
           <label className="mt-4 flex items-center gap-3 text-sm">
             <input
               type="checkbox"
@@ -158,7 +208,7 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
 
         <Step n={2} title="Cor">
           <div className="flex flex-wrap gap-3">
-            {product.colors.map((c) => (
+            {category.colors.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setColorId(c.id)}
@@ -176,7 +226,7 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
 
         <Step n={3} title="Onde estampar">
           <ul className="space-y-2">
-            {product.printAreas.map((a) => {
+            {category.printAreas.map((a) => {
               const p = placements[a.id];
               return (
                 <li key={a.id} className="rounded-2xl border border-line p-3">
@@ -196,10 +246,10 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
                         value={p.size}
                         options={a.sizes.map((s) => ({
                           value: s,
-                          label: `${s.toUpperCase()} +${formatBRL(PRINT_PRICE_CENTS[s])}`,
+                          label: `${ART_SIZE_INFO[s].label} +${formatBRL(sizeExtra(s))}`,
                         }))}
                         onChange={(v) =>
-                          setPlacements((prev) => ({ ...prev, [a.id]: { ...prev[a.id], size: v as PrintSize } }))
+                          setPlacements((prev) => ({ ...prev, [a.id]: { ...prev[a.id], size: v as ArtSize } }))
                         }
                       />
                     </div>
@@ -244,14 +294,14 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <button
               className="h-9 w-9 rounded-full border border-line text-lg"
-              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+              onClick={() => setQuantity((q) => Math.max(minQty, q - 1))}
               aria-label="Diminuir"
             >
               −
             </button>
             <input
               type="number"
-              min={1}
+              min={minQty}
               value={quantity}
               onChange={(e) => setQuantity(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
               className="w-20 rounded-xl border border-line bg-transparent px-3 py-2 text-center"
@@ -264,26 +314,32 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
               +
             </button>
             <span className="text-sm text-fg-soft">
-              {quote.discount > 0 ? `${Math.round(quote.discount * 100)}% de desconto por quantidade` : "Desconto a partir de 10 peças"}
+              {quote?.next
+                ? `A partir de ${quote.next.min} peças: ${formatBRL(quote.next.unitCents)} cada`
+                : `Faixa ${quote?.tierLabel ?? ""}`}
             </span>
           </div>
         </Step>
 
         <div className="rounded-3xl bg-bg-soft p-6">
-          <div className="flex items-baseline justify-between">
-            <span className="text-fg-soft">{formatBRL(quote.unitCents)} por peça</span>
-            <span className="text-3xl font-semibold tracking-tight">{formatBRL(quote.totalCents)}</span>
-          </div>
+          {quote ? (
+            <div className="flex items-baseline justify-between">
+              <span className="text-fg-soft">{formatBRL(quote.unitCents)} por peça</span>
+              <span className="text-3xl font-semibold tracking-tight">{formatBRL(quote.totalCents)}</span>
+            </div>
+          ) : (
+            <p className="text-center text-[#bf4800] dark:text-[#ff9f0a]">{quoteError}</p>
+          )}
           <a
             href={whatsappLink(summary)}
             target="_blank"
             rel="noreferrer"
-            className={`btn btn-primary mt-5 w-full ${prints.length === 0 ? "pointer-events-none opacity-40" : ""}`}
+            className={`btn btn-primary mt-5 w-full ${!quote ? "pointer-events-none opacity-40" : ""}`}
           >
             Enviar para aprovação no WhatsApp
           </a>
           <p className="mt-3 text-center text-xs text-fg-soft">
-            Estimativa com preços de exemplo. O valor final vem com o mockup aprovado.
+            Preços da tabela TuManera. O valor final vem com o mockup aprovado.
           </p>
         </div>
       </div>
@@ -291,9 +347,9 @@ export function Studio({ initialSlug }: { initialSlug?: string }) {
   );
 }
 
-function defaultPlacement(p: Product): Record<string, Placement> {
-  const a = p.printAreas.find((x) => x.side === "frente") ?? p.printAreas[0];
-  return { [a.id]: { size: a.sizes[a.sizes.length - 1], dx: 0, dy: 0 } };
+function defaultPlacement(c: Category): Record<string, Placement> {
+  const a = c.printAreas.find((x) => x.side === "frente") ?? c.printAreas[0];
+  return { [a.id]: { size: a.sizes[0], dx: 0, dy: 0 } };
 }
 
 function ArtOnPiece({
@@ -409,9 +465,9 @@ function detectTransparency(img: HTMLImageElement): boolean {
   return false;
 }
 
-function artWarnings(art: ArtInfo, sizes: PrintSize[]): string[] {
+function artWarnings(art: ArtInfo, sizes: ArtSize[]): string[] {
   const out: string[] = [];
-  const widest = sizes.reduce((m, s) => Math.max(m, PRINT_WIDTH_CM[s]), 0);
+  const widest = sizes.reduce((m, s) => Math.max(m, ART_SIZE_INFO[s].widthCm), 0);
   if (widest > 0) {
     const dpi = Math.round(art.widthPx / (widest / 2.54));
     if (dpi < 300) {

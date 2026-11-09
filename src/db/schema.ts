@@ -85,15 +85,39 @@ export const products = pgTable(
     tenantId: tenantId(),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
+    category: text("category"), // ex.: Camisetas Oversized
+    productLineName: text("product_line_name"), // ex.: Oversized Premium
+    composition: text("composition"),
     line: productLine("line").notNull().default("peca_pronta"),
     description: text("description"),
-    basePriceCents: integer("base_price_cents").notNull().default(0),
     ncm: text("ncm"), // fiscal (Fase 2)
     serviceCode: text("service_code"), // LC 116 (Fase 2)
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("products_tenant_slug").on(t.tenantId, t.slug)],
+);
+
+/**
+ * Tabela de preços: preço por peça por faixa de quantidade e tamanho da arte
+ * (importada de data/tabela-precos-v5.csv). art_size = sem | a6 | a5 | a4 | a3 | a2.
+ */
+export const productPrices = pgTable(
+  "product_prices",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    tierLabel: text("tier_label").notNull(),
+    minQty: integer("min_qty").notNull(),
+    maxQty: integer("max_qty"),
+    artSize: text("art_size").notNull(),
+    priceCents: integer("price_cents").notNull(),
+    tableVersion: text("table_version").notNull().default("v5"),
+  },
+  (t) => [uniqueIndex("product_prices_unique").on(t.productId, t.tableVersion, t.minQty, t.artSize)],
 );
 
 export const productVariants = pgTable("product_variants", {
@@ -116,7 +140,7 @@ export const printAreas = pgTable("print_areas", {
     .references(() => products.id, { onDelete: "cascade" }),
   code: text("code").notNull(), // peito, costas, manga...
   label: text("label").notNull(),
-  allowedSizes: text("allowed_sizes").array().notNull(), // escudo, a4, a3
+  allowedSizes: text("allowed_sizes").array().notNull(), // a6, a5, a4, a3, a2
   side: text("side").notNull().default("frente"),
   x: integer("x").notNull(), // % no mockup
   y: integer("y").notNull(),

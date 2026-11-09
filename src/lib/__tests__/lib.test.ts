@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getProduct } from "../catalog";
-import { quoteDtfMeters, quotePiece, tierDiscount } from "../pricing";
+import { CATEGORIES, findModel, getCategory } from "../catalog";
+import { quoteDtfMeters, quotePiece, tierIndexFor } from "../pricing";
 import { tenantSlugFromHost } from "../tenant";
 
 describe("tenantSlugFromHost", () => {
@@ -21,29 +21,62 @@ describe("tenantSlugFromHost", () => {
   });
 });
 
+describe("catálogo (tabela v5)", () => {
+  it("carrega os 34 modelos em categorias", () => {
+    expect(CATEGORIES.reduce((n, c) => n + c.models.length, 0)).toBe(34);
+    expect(getCategory("ecobags")?.models[0].name).toBe("Ecobag 35 x 40 cm");
+  });
+  it("toda área de estampa usa só tamanhos da tabela", () => {
+    for (const c of CATEGORIES) for (const a of c.printAreas) expect(a.sizes.length).toBeGreaterThan(0);
+  });
+});
+
 describe("pricing", () => {
-  const camiseta = getProduct("camiseta")!;
+  const simple = findModel("camiseta-regular-basic-simple")!;
+  const colors = findModel("camiseta-regular-essentials-colors")!;
 
-  it("faixas de desconto", () => {
-    expect(tierDiscount(1)).toBe(0);
-    expect(tierDiscount(10)).toBe(0.05);
-    expect(tierDiscount(100)).toBe(0.2);
+  it("faixas de quantidade da tabela", () => {
+    expect(tierIndexFor(simple.model, 4)).toBe(-1);
+    expect(tierIndexFor(simple.model, 5)).toBe(0);
+    expect(tierIndexFor(simple.model, 19)).toBe(1);
+    expect(tierIndexFor(simple.model, 250)).toBe(6);
   });
 
-  it("peça pronta = peça lisa + estampas", () => {
-    const q = quotePiece(camiseta, [{ areaId: "peito", size: "escudo" }, { areaId: "costas", size: "a3" }], 1);
-    expect(q.unitCents).toBe(3900 + 900 + 2900);
-    expect(q.totalCents).toBe(q.unitCents);
+  it("uma estampa = preço exato da tabela", () => {
+    // Basic Simple, 10+, A4 = R$ 52
+    const q = quotePiece(simple.category, simple.model, [{ areaId: "costas", size: "a4" }], 10);
+    expect(q.unitCents).toBe(5200);
+    expect(q.totalCents).toBe(52000);
+    expect(q.tierLabel).toBe("10+");
+    expect(q.next).toEqual({ min: 20, unitCents: 5000 });
   });
 
-  it("peça do cliente não cobra a peça lisa", () => {
-    const q = quotePiece(camiseta, [{ areaId: "costas", size: "a4" }], 20, true);
-    expect(q.unitCents).toBe(Math.round(1900 * 0.9));
+  it("sem estampa = preço da peça lisa", () => {
+    expect(quotePiece(colors.category, colors.model, [], 1).unitCents).toBe(5500);
   });
 
-  it("rejeita tamanho fora da área", () => {
-    expect(() => quotePiece(camiseta, [{ areaId: "peito", size: "a3" }], 1)).toThrow();
-    expect(() => quotePiece(camiseta, [], 0)).toThrow();
+  it("segunda estampa soma a diferença da tabela", () => {
+    // Essentials Colors, 1+: sem 55, A6 65, A3 90 -> 90 + (65 - 55) = 100
+    const q = quotePiece(
+      colors.category,
+      colors.model,
+      [
+        { areaId: "peito", size: "a6" },
+        { areaId: "costas", size: "a3" },
+      ],
+      1,
+    );
+    expect(q.unitCents).toBe(10000);
+  });
+
+  it("peça do cliente cobra só a estampa", () => {
+    const q = quotePiece(colors.category, colors.model, [{ areaId: "costas", size: "a4" }], 1, true);
+    expect(q.unitCents).toBe(8000 - 5500);
+  });
+
+  it("respeita mínimo e tamanhos por área", () => {
+    expect(() => quotePiece(simple.category, simple.model, [], 2)).toThrow(/mínimo de 5/);
+    expect(() => quotePiece(simple.category, simple.model, [{ areaId: "peito", size: "a2" }], 5)).toThrow();
   });
 
   it("DTF por metro arredonda para cima em 10 cm", () => {

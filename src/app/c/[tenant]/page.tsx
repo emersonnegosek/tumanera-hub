@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Mockup } from "@/components/Mockup";
-import { PRODUCTS } from "@/lib/catalog";
+import { CATEGORIES } from "@/lib/catalog";
 import { formatBRL } from "@/lib/pricing";
 
 /**
@@ -39,9 +39,9 @@ export default async function CollabStore({ params }: PageProps<"/c/[tenant]">) 
       </section>
       <section className="px-4">
         <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {PRODUCTS.slice(0, 3).map((p) => (
+          {[CATEGORIES[1], CATEGORIES[7], CATEGORIES[8]].filter(Boolean).map((p) => (
             <div key={p.slug} className="rounded-3xl bg-bg-soft p-8">
-              <Mockup kind={p.kind} color={p.colors[1]?.hex ?? p.colors[0].hex} className="mx-auto max-w-[240px]">
+              <Mockup kind={p.kind} color={p.colors[0].hex} className="mx-auto max-w-[240px]">
                 <div className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2 text-[clamp(10px,2.4vw,20px)] font-bold text-white/90">
                   {brand}
                 </div>
@@ -49,7 +49,7 @@ export default async function CollabStore({ params }: PageProps<"/c/[tenant]">) 
               <h2 className="mt-6 text-xl font-semibold">
                 {p.name} {brand}
               </h2>
-              <p className="mt-1 text-sm">{formatBRL(p.basePriceCents + 2900)}</p>
+              <p className="mt-1 text-sm">{formatBRL(p.models[0].prices.a4[0])}</p>
             </div>
           ))}
         </div>

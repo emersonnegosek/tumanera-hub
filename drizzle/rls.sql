@@ -18,7 +18,7 @@ do $$
 declare tbl text;
 begin
   foreach tbl in array array[
-    'products', 'product_variants', 'print_areas', 'artworks', 'customization_requests',
+    'products', 'product_prices', 'product_variants', 'print_areas', 'artworks', 'customization_requests',
     'proposals', 'contacts', 'conversations', 'messages', 'deals', 'orders', 'order_items',
     'fiscal_documents'
   ] loop
@@ -46,3 +46,5 @@ drop policy if exists public_variants on product_variants;
 create policy public_variants on product_variants for select to anon using (true);
 drop policy if exists public_print_areas on print_areas;
 create policy public_print_areas on print_areas for select to anon using (true);
+drop policy if exists public_prices on product_prices;
+create policy public_prices on product_prices for select to anon using (true);

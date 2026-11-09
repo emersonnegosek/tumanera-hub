@@ -135,6 +135,18 @@ CREATE TABLE "print_areas" (
 	"y" integer NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "product_prices" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"product_id" uuid NOT NULL,
+	"tier_label" text NOT NULL,
+	"min_qty" integer NOT NULL,
+	"max_qty" integer,
+	"art_size" text NOT NULL,
+	"price_cents" integer NOT NULL,
+	"table_version" text DEFAULT 'v5' NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "product_variants" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -150,9 +162,11 @@ CREATE TABLE "products" (
 	"tenant_id" uuid NOT NULL,
 	"slug" text NOT NULL,
 	"name" text NOT NULL,
+	"category" text,
+	"product_line_name" text,
+	"composition" text,
 	"line" "product_line" DEFAULT 'peca_pronta' NOT NULL,
 	"description" text,
-	"base_price_cents" integer DEFAULT 0 NOT NULL,
 	"ncm" text,
 	"service_code" text,
 	"active" boolean DEFAULT true NOT NULL,
@@ -220,6 +234,8 @@ ALTER TABLE "orders" ADD CONSTRAINT "orders_contact_id_contacts_id_fk" FOREIGN K
 ALTER TABLE "orders" ADD CONSTRAINT "orders_deal_id_deals_id_fk" FOREIGN KEY ("deal_id") REFERENCES "public"."deals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "print_areas" ADD CONSTRAINT "print_areas_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "print_areas" ADD CONSTRAINT "print_areas_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_variants" ADD CONSTRAINT "product_variants_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "product_variants" ADD CONSTRAINT "product_variants_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "products" ADD CONSTRAINT "products_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -227,4 +243,5 @@ ALTER TABLE "proposals" ADD CONSTRAINT "proposals_tenant_id_tenants_id_fk" FOREI
 ALTER TABLE "proposals" ADD CONSTRAINT "proposals_request_id_customization_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."customization_requests"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "contacts_tenant_whatsapp" ON "contacts" USING btree ("tenant_id","whatsapp");--> statement-breakpoint
 CREATE INDEX "messages_conversation" ON "messages" USING btree ("conversation_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "product_prices_unique" ON "product_prices" USING btree ("product_id","table_version","min_qty","art_size");--> statement-breakpoint
 CREATE UNIQUE INDEX "products_tenant_slug" ON "products" USING btree ("tenant_id","slug");

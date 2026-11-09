@@ -5,8 +5,13 @@ import { Studio } from "./Studio";
 export const metadata: Metadata = { title: "Estúdio de personalização" };
 
 async function StudioFromQuery({ searchParams }: Pick<PageProps<"/estudio">, "searchParams">) {
-  const { produto } = await searchParams;
-  return <Studio initialSlug={typeof produto === "string" ? produto : undefined} />;
+  const { modelo, produto } = await searchParams;
+  return (
+    <Studio
+      initialModel={typeof modelo === "string" ? modelo : undefined}
+      initialCategory={typeof produto === "string" ? produto : undefined}
+    />
+  );
 }
 
 export default function EstudioPage({ searchParams }: PageProps<"/estudio">) {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Mockup } from "@/components/Mockup";
 import { Reveal } from "@/components/Reveal";
-import { PRODUCTS } from "@/lib/catalog";
+import { CATEGORIES, categoryFromPriceCents } from "@/lib/catalog";
 import { formatBRL } from "@/lib/pricing";
 import { whatsappLink } from "@/lib/site";
 
@@ -9,7 +9,7 @@ const STEPS = [
   {
     n: "1",
     title: "Escolha a peça",
-    text: "Camiseta, moletom, corta-vento, ecobag ou boné. Cor e tamanho do seu jeito.",
+    text: "Camisetas, polos, regatas, moletons, corta-ventos e ecobags. Dez cores, do PP ao G3.",
   },
   {
     n: "2",
@@ -62,23 +62,23 @@ export default function Home() {
         <div className="mx-auto max-w-6xl">
           <Reveal>
             <h2 className="headline text-4xl sm:text-5xl">Escolha sua base.</h2>
-            <p className="mt-3 text-lg text-fg-soft">Cinco peças, infinitas possibilidades.</p>
+            <p className="mt-3 text-lg text-fg-soft">{CATEGORIES.reduce((n, c) => n + c.models.length, 0)} modelos, infinitas possibilidades.</p>
           </Reveal>
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-            {PRODUCTS.map((p, i) => (
-              <Reveal key={p.slug} delay={i * 80}>
+            {CATEGORIES.map((c, i) => (
+              <Reveal key={c.slug} delay={(i % 5) * 80}>
                 <Link
-                  href={`/produtos/${p.slug}`}
+                  href={`/produtos/${c.slug}`}
                   className="card group flex h-full flex-col p-6 transition-transform duration-300 hover:-translate-y-1"
                 >
                   <Mockup
-                    kind={p.kind}
-                    color={p.colors[0].hex}
+                    kind={c.kind}
+                    color={c.colors[(i * 3) % c.colors.length].hex}
                     className="transition-transform duration-500 group-hover:scale-[1.04]"
                   />
-                  <h3 className="mt-5 text-xl font-semibold">{p.name}</h3>
-                  <p className="mt-1 text-sm text-fg-soft">{p.tagline}</p>
-                  <p className="mt-auto pt-4 text-sm">A partir de {formatBRL(p.basePriceCents)}</p>
+                  <h3 className="mt-5 text-xl font-semibold">{c.name}</h3>
+                  <p className="mt-1 text-sm text-fg-soft">{c.tagline}</p>
+                  <p className="mt-auto pt-4 text-sm">A partir de {formatBRL(categoryFromPriceCents(c))}</p>
                 </Link>
               </Reveal>
             ))}
